@@ -162,6 +162,7 @@ struct TagFormSheet: View {
             let tag = Tag(name: trimmedName, code: trimmedCode, group: group)
             modelContext.insert(tag)
             group.tags.append(tag)
+            try? modelContext.save()
         case .edit(let tag):
             let codeIsChanging = tag.code.uppercased() != trimmedCode
             var oldFilenames: [PersistentIdentifier: String] = [:]
@@ -179,6 +180,7 @@ struct TagFormSheet: View {
                 let vaultPath = UserDefaults.standard.string(forKey: "vaultPath") ?? ""
                 BatchOperations.regenerateFilenames(for: tag.samples, oldFilenames: oldFilenames, vaultPath: vaultPath)
             }
+            try? modelContext.save()
         }
 
         dismiss()

@@ -150,6 +150,7 @@ struct TagGroupFormSheet: View {
         case .create:
             let group = TagGroup(name: trimmedName, code: trimmedCode)
             modelContext.insert(group)
+            try? modelContext.save()
         case .edit(let group):
             let codeIsChanging = group.code.uppercased() != trimmedCode
             var oldFilenames: [PersistentIdentifier: String] = [:]
@@ -170,6 +171,7 @@ struct TagGroupFormSheet: View {
                 let affectedSamples = group.tags.flatMap(\.samples)
                 BatchOperations.regenerateFilenames(for: affectedSamples, oldFilenames: oldFilenames, vaultPath: vaultPath)
             }
+            try? modelContext.save()
         }
 
         dismiss()

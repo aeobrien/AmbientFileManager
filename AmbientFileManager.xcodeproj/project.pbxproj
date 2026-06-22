@@ -33,6 +33,7 @@
 		A4AA00000000000000000119 /* DatabaseExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4AA00000000000000000019 /* DatabaseExport.swift */; };
 		A4AA0000000000000000011A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4AA0000000000000000001A /* SettingsView.swift */; };
 		A4AA0000000000000000011B /* KeyHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4AA0000000000000000001B /* KeyHelper.swift */; };
+		A4AA0000000000000000011C /* FilenameDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4AA0000000000000000001C /* FilenameDecoder.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -63,6 +64,7 @@
 		A4AA00000000000000000019 /* DatabaseExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseExport.swift; sourceTree = "<group>"; };
 		A4AA0000000000000000001A /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A4AA0000000000000000001B /* KeyHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyHelper.swift; sourceTree = "<group>"; };
+		A4AA0000000000000000001C /* FilenameDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilenameDecoder.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -171,6 +173,7 @@
 			isa = PBXGroup;
 			children = (
 				A4AA0000000000000000000E /* FilenameEncoder.swift */,
+				A4AA0000000000000000001C /* FilenameDecoder.swift */,
 				A4AA0000000000000000000F /* VaultManager.swift */,
 				A4AA00000000000000000012 /* AudioPlayer.swift */,
 				A4AA00000000000000000014 /* BatchOperations.swift */,
@@ -299,6 +302,7 @@
 				A4AA00000000000000000119 /* DatabaseExport.swift in Sources */,
 				A4AA0000000000000000011A /* SettingsView.swift in Sources */,
 				A4AA0000000000000000011B /* KeyHelper.swift in Sources */,
+				A4AA0000000000000000011C /* FilenameDecoder.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

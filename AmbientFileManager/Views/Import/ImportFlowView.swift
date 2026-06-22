@@ -9,6 +9,15 @@ struct ImportCandidate: Identifiable {
     var version: Int = 1
     var isAudio: Bool
 
+    // Metadata parsed from the filename
+    var parsedKey: String?
+    var parsedTempo: Int?
+    var parsedTagCodes: [(groupCode: String, tagCode: String)] = []
+    var unrecognizedTagCodes: [(groupCode: String, tagCode: String)] = []
+    var hasParsedMetadata: Bool {
+        parsedKey != nil || parsedTempo != nil || !parsedTagCodes.isEmpty || !unrecognizedTagCodes.isEmpty
+    }
+
     init(sourceURL: URL) {
         self.sourceURL = sourceURL
         self.name = sourceURL.deletingPathExtension().lastPathComponent
@@ -18,6 +27,36 @@ struct ImportCandidate: Identifiable {
 
     var fileExtension: String {
         sourceURL.pathExtension.lowercased()
+    }
+
+    /// Parse the filename and populate metadata fields.
+    mutating func parseFilename(tagGroups: [TagGroup]) {
+        let rawName = sourceURL.deletingPathExtension().lastPathComponent
+        let decoded = FilenameDecoder.decodeAndResolve(rawName + "." + fileExtension, tagGroups: tagGroups)
+        name = decoded.name
+        version = decoded.version
+        parsedKey = decoded.key
+        parsedTempo = decoded.tempo
+        parsedTagCodes = decoded.tagCodes
+        unrecognizedTagCodes = decoded.unrecognizedTagCodes
+    }
+}
+
+/// A tag code found in filenames that doesn't match any existing tag.
+struct UnresolvedTagCode: Identifiable, Hashable {
+    var id: String { "\(groupCode)-\(tagCode)" }
+    let groupCode: String
+    let tagCode: String
+    /// How many selected files contain this tag code.
+    var fileCount: Int = 0
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(groupCode)
+        hasher.combine(tagCode)
+    }
+
+    static func == (lhs: UnresolvedTagCode, rhs: UnresolvedTagCode) -> Bool {
+        lhs.groupCode == rhs.groupCode && lhs.tagCode == rhs.tagCode
     }
 }
 
@@ -29,6 +68,7 @@ enum ImportMode {
 private enum ImportStep {
     case selectFiles
     case chooseMode
+    case unresolvedTags
     case detailed
     case importing
     case collision
@@ -52,6 +92,12 @@ struct ImportFlowView: View {
     @State private var batchKey: String = ""
     @State private var batchTempo: String = ""
     @State private var batchTagIds: Set<UUID> = []
+    @State private var detailedPrePopulated = false
+
+    // Unresolved tag codes across all selected candidates
+    @State private var unresolvedCodes: [UnresolvedTagCode] = []
+    @State private var showCreateTagSheet = false
+    @State private var creatingForCode: UnresolvedTagCode?
 
     // Collision handling
     @State private var showCollision = false
@@ -69,6 +115,8 @@ struct ImportFlowView: View {
                 selectFilesView
             case .chooseMode:
                 chooseModeView
+            case .unresolvedTags:
+                unresolvedTagsView
             case .detailed:
                 detailedView
             case .importing:
@@ -110,11 +158,22 @@ struct ImportFlowView: View {
             }
         }
 
-        candidates = allURLs.map { ImportCandidate(sourceURL: $0) }
+        candidates = allURLs.map { url in
+            var candidate = ImportCandidate(sourceURL: url)
+            if candidate.isAudio {
+                candidate.parseFilename(tagGroups: tagGroups)
+            }
+            return candidate
+        }
     }
 
     private var selectedCount: Int {
         candidates.filter { $0.isSelected && $0.isAudio }.count
+    }
+
+    /// Count of selected files that had metadata parsed from their filenames.
+    private var parsedMetadataCount: Int {
+        candidates.filter { $0.isSelected && $0.isAudio && $0.hasParsedMetadata }.count
     }
 
     // MARK: - Step 1: Select Files
@@ -156,6 +215,31 @@ struct ImportFlowView: View {
                                 Toggle(isOn: $candidate.isSelected) {
                                     VStack(alignment: .leading) {
                                         Text(candidate.sourceURL.lastPathComponent)
+                                        if candidate.hasParsedMetadata {
+                                            HStack(spacing: 4) {
+                                                if let key = candidate.parsedKey {
+                                                    Text(key)
+                                                        .padding(.horizontal, 4)
+                                                        .background(.blue.opacity(0.15), in: RoundedRectangle(cornerRadius: 3))
+                                                }
+                                                if let tempo = candidate.parsedTempo {
+                                                    Text("\(tempo)bpm")
+                                                        .padding(.horizontal, 4)
+                                                        .background(.green.opacity(0.15), in: RoundedRectangle(cornerRadius: 3))
+                                                }
+                                                ForEach(Array(candidate.parsedTagCodes.enumerated()), id: \.offset) { _, tc in
+                                                    Text("\(tc.groupCode)-\(tc.tagCode)")
+                                                        .padding(.horizontal, 4)
+                                                        .background(.purple.opacity(0.15), in: RoundedRectangle(cornerRadius: 3))
+                                                }
+                                                ForEach(Array(candidate.unrecognizedTagCodes.enumerated()), id: \.offset) { _, tc in
+                                                    Text("\(tc.groupCode)-\(tc.tagCode)")
+                                                        .padding(.horizontal, 4)
+                                                        .background(.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 3))
+                                                }
+                                            }
+                                            .font(.caption)
+                                        }
                                         Text(candidate.sourceURL.deletingLastPathComponent().path)
                                             .font(.caption)
                                             .foregroundStyle(.tertiary)
@@ -176,6 +260,18 @@ struct ImportFlowView: View {
                             }
                         }
                     }
+                }
+
+                if parsedMetadataCount > 0 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "info.circle")
+                            .foregroundStyle(.blue)
+                        Text("Detected metadata in \(parsedMetadataCount) filename(s) — this will be applied automatically.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 4)
                 }
             }
 
@@ -205,7 +301,7 @@ struct ImportFlowView: View {
             HStack(spacing: 20) {
                 Button {
                     activeMode = .quickDump
-                    startImport()
+                    proceedAfterModeChoice()
                 } label: {
                     VStack(spacing: 12) {
                         Image(systemName: "tray.and.arrow.down")
@@ -216,6 +312,11 @@ struct ImportFlowView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
+                        if parsedMetadataCount > 0 {
+                            Text("Detected metadata will still be applied.")
+                                .font(.caption2)
+                                .foregroundStyle(.blue)
+                        }
                     }
                     .frame(width: 200, height: 150)
                 }
@@ -223,7 +324,7 @@ struct ImportFlowView: View {
 
                 Button {
                     activeMode = .detailed
-                    step = .detailed
+                    proceedAfterModeChoice()
                 } label: {
                     VStack(spacing: 12) {
                         Image(systemName: "tag")
@@ -244,6 +345,161 @@ struct ImportFlowView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// After mode is chosen, check for unresolved tags or proceed directly.
+    private func proceedAfterModeChoice() {
+        collectUnresolvedCodes()
+        if !unresolvedCodes.isEmpty {
+            step = .unresolvedTags
+        } else if activeMode == .detailed {
+            prePopulateDetailedFields()
+            step = .detailed
+        } else {
+            startImport()
+        }
+    }
+
+    /// Gather all unrecognized tag codes from selected candidates.
+    private func collectUnresolvedCodes() {
+        var codeMap: [String: UnresolvedTagCode] = [:]
+        for candidate in candidates where candidate.isSelected && candidate.isAudio {
+            for tc in candidate.unrecognizedTagCodes {
+                let key = "\(tc.groupCode)-\(tc.tagCode)"
+                if var existing = codeMap[key] {
+                    existing.fileCount += 1
+                    codeMap[key] = existing
+                } else {
+                    codeMap[key] = UnresolvedTagCode(groupCode: tc.groupCode, tagCode: tc.tagCode, fileCount: 1)
+                }
+            }
+        }
+        unresolvedCodes = codeMap.values.sorted { $0.id < $1.id }
+    }
+
+    // MARK: - Step 2.5: Unresolved Tags
+
+    private var unresolvedTagsView: some View {
+        VStack(spacing: 0) {
+            Text("Unrecognised Tags in Filenames")
+                .font(.headline)
+                .padding()
+
+            Text("The following tag codes were found in filenames but don't match any tags in your library. You can create them now or skip — skipped codes will be ignored during import.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 8)
+
+            List {
+                ForEach(unresolvedCodes) { code in
+                    HStack {
+                        Text(code.id)
+                            .font(.system(.body, design: .monospaced))
+                            .fontWeight(.medium)
+                        Text("(\(code.fileCount) file\(code.fileCount == 1 ? "" : "s"))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+
+                        if isCodeNowResolved(code) {
+                            Label("Created", systemImage: "checkmark.circle.fill")
+                                .font(.caption)
+                                .foregroundStyle(.green)
+                        } else {
+                            Button("Create Tag...") {
+                                creatingForCode = code
+                                showCreateTagSheet = true
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                    }
+                }
+            }
+
+            Divider()
+            HStack {
+                Button("Back") { step = .chooseMode }
+                Spacer()
+
+                let remaining = unresolvedCodes.filter { !isCodeNowResolved($0) }.count
+                if remaining > 0 {
+                    Text("\(remaining) unresolved")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+
+                Button(remaining > 0 ? "Skip & Continue" : "Continue") {
+                    // Re-parse candidates now that new tags may have been created
+                    reparseAllCandidates()
+                    if activeMode == .detailed {
+                        prePopulateDetailedFields()
+                        step = .detailed
+                    } else {
+                        startImport()
+                    }
+                }
+                .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
+            }
+            .padding()
+        }
+        .sheet(isPresented: $showCreateTagSheet) {
+            if let code = creatingForCode {
+                UnresolvedTagCreateSheet(
+                    groupCode: code.groupCode,
+                    tagCode: code.tagCode,
+                    tagGroups: tagGroups
+                )
+            }
+        }
+    }
+
+    /// Check if a previously unresolved code now matches a tag in the library.
+    private func isCodeNowResolved(_ code: UnresolvedTagCode) -> Bool {
+        for group in tagGroups where group.code.uppercased() == code.groupCode.uppercased() {
+            if group.tags.contains(where: { $0.code.uppercased() == code.tagCode.uppercased() }) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Re-parse all candidate filenames after new tags have been created.
+    private func reparseAllCandidates() {
+        for i in candidates.indices where candidates[i].isAudio {
+            candidates[i].parseFilename(tagGroups: tagGroups)
+        }
+        collectUnresolvedCodes()
+    }
+
+    /// Pre-populate detailed mode fields from the first candidate's parsed metadata.
+    private func prePopulateDetailedFields() {
+        guard !detailedPrePopulated else { return }
+        detailedPrePopulated = true
+
+        // Use the first selected candidate's parsed data as defaults
+        guard let first = candidates.first(where: { $0.isSelected && $0.isAudio && $0.hasParsedMetadata }) else { return }
+
+        if batchKey.isEmpty, let key = first.parsedKey {
+            batchKey = key
+        }
+        if batchTempo.isEmpty, let tempo = first.parsedTempo {
+            batchTempo = String(tempo)
+        }
+        // Pre-select tags that were parsed from filenames
+        let allParsedCodes = candidates
+            .filter { $0.isSelected && $0.isAudio }
+            .flatMap(\.parsedTagCodes)
+        for tc in allParsedCodes {
+            for group in tagGroups where group.code.uppercased() == tc.groupCode.uppercased() {
+                if let tag = group.tags.first(where: { $0.code.uppercased() == tc.tagCode.uppercased() }) {
+                    batchTagIds.insert(tag.id)
+                }
+            }
+        }
     }
 
     // MARK: - Step 3: Detailed Mode
@@ -461,11 +717,13 @@ struct ImportFlowView: View {
     private func generateFilename(for candidate: ImportCandidate) -> String {
         switch activeMode {
         case .quickDump:
+            // In quick dump, use per-file parsed metadata
+            let tagCodes = candidate.parsedTagCodes
             return FilenameEncoder.encode(
                 name: candidate.name,
-                key: nil,
-                tempo: nil,
-                tagCodes: [],
+                key: candidate.parsedKey,
+                tempo: candidate.parsedTempo,
+                tagCodes: tagCodes,
                 version: candidate.version,
                 fileExtension: candidate.fileExtension
             )
@@ -490,9 +748,28 @@ struct ImportFlowView: View {
             try VaultManager.copyToVault(from: candidate.sourceURL, filename: filename, vaultPath: vaultPath)
 
             let isDetailed = activeMode == .detailed
-            let key: String? = isDetailed && !batchKey.isEmpty ? batchKey : nil
-            let tempo: Int? = isDetailed ? Int(batchTempo) : nil
-            let tags = isDetailed ? resolveTags(from: batchTagIds) : []
+
+            // Determine key and tempo: detailed uses batch, quick dump uses parsed
+            let key: String?
+            let tempo: Int?
+            if isDetailed {
+                key = batchKey.isEmpty ? nil : batchKey
+                tempo = Int(batchTempo)
+            } else {
+                key = candidate.parsedKey
+                tempo = candidate.parsedTempo
+            }
+
+            // Determine tags: detailed uses batch selection, quick dump uses per-file parsed tags
+            let tags: [Tag]
+            if isDetailed {
+                tags = resolveTags(from: batchTagIds)
+            } else {
+                tags = FilenameDecoder.resolveTags(from: candidate.parsedTagCodes, in: tagGroups)
+            }
+
+            // A file is considered "processed" if it has any metadata at all
+            let hasMetadata = key != nil || tempo != nil || !tags.isEmpty
 
             let sample = Sample(
                 name: candidate.name,
@@ -500,7 +777,7 @@ struct ImportFlowView: View {
                 key: key,
                 tempo: tempo,
                 version: candidate.version,
-                isProcessed: isDetailed,
+                isProcessed: isDetailed || hasMetadata,
                 fileExtension: candidate.fileExtension
             )
             modelContext.insert(sample)
@@ -509,6 +786,7 @@ struct ImportFlowView: View {
                 sample.tags.append(tag)
             }
 
+            try modelContext.save()
             importedCount += 1
         } catch {
             skippedCount += 1
@@ -602,5 +880,91 @@ struct ImportFlowView: View {
         DispatchQueue.main.async {
             processNextImport()
         }
+    }
+}
+
+// MARK: - Unresolved Tag Create Sheet
+
+/// A sheet that lets the user quickly create a tag for an unresolved code.
+/// If a group with the matching code exists, the tag is added to it.
+/// Otherwise, a new group is created.
+struct UnresolvedTagCreateSheet: View {
+    let groupCode: String
+    let tagCode: String
+    let tagGroups: [TagGroup]
+
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var tagName: String = ""
+    @State private var groupName: String = ""
+    @State private var selectedGroupId: UUID?
+
+    private var matchingGroup: TagGroup? {
+        tagGroups.first { $0.code.uppercased() == groupCode.uppercased() }
+    }
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("Create Tag: \(groupCode)-\(tagCode)")
+                .font(.headline)
+
+            if let group = matchingGroup {
+                Text("Group \"\(group.name)\" (\(group.code)) already exists. The new tag will be added to it.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            } else {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("New Group Name (code: \(groupCode))")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    TextField("e.g. Sound Source", text: $groupName)
+                        .textFieldStyle(.roundedBorder)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Tag Name (code: \(tagCode))")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                TextField("e.g. Arrival", text: $tagName)
+                    .textFieldStyle(.roundedBorder)
+            }
+
+            HStack {
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Spacer()
+                Button("Create") { create() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(tagName.trimmingCharacters(in: .whitespaces).isEmpty
+                              || (matchingGroup == nil && groupName.trimmingCharacters(in: .whitespaces).isEmpty))
+            }
+        }
+        .padding(24)
+        .frame(width: 400)
+    }
+
+    private func create() {
+        let trimmedTagName = tagName.trimmingCharacters(in: .whitespaces)
+        guard !trimmedTagName.isEmpty else { return }
+
+        let group: TagGroup
+        if let existing = matchingGroup {
+            group = existing
+        } else {
+            let trimmedGroupName = groupName.trimmingCharacters(in: .whitespaces)
+            guard !trimmedGroupName.isEmpty else { return }
+            group = TagGroup(name: trimmedGroupName, code: groupCode.uppercased())
+            modelContext.insert(group)
+        }
+
+        let tag = Tag(name: trimmedTagName, code: tagCode.uppercased(), group: group)
+        modelContext.insert(tag)
+        group.tags.append(tag)
+
+        try? modelContext.save()
+        dismiss()
     }
 }

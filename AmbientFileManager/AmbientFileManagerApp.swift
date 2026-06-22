@@ -23,5 +23,6 @@ struct AmbientFileManagerApp: App {
             SettingsView()
                 .frame(minWidth: 500, minHeight: 400)
         }
+        .modelContainer(for: [Sample.self, TagGroup.self, Tag.self])
     }
 }

@@ -4,6 +4,7 @@ import SwiftData
 struct TagManagerView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \TagGroup.name) private var tagGroups: [TagGroup]
+    @AppStorage("vaultPath") private var vaultPath: String = ""
 
     @State private var activeSheet: TagManagerSheet?
     @State private var groupToDelete: TagGroup?
@@ -164,11 +165,30 @@ struct TagManagerView: View {
     }
 
     private func deleteGroup(_ group: TagGroup) {
+        // Regenerate filenames for all affected samples before cascade-deleting tags
+        let affectedSamples = group.tags.flatMap(\.samples)
+        var oldFilenames: [PersistentIdentifier: String] = [:]
+        for sample in affectedSamples {
+            oldFilenames[sample.persistentModelID] = FilenameEncoder.encode(sample: sample)
+        }
+
         modelContext.delete(group)
+        // Cascade delete removes tags — now regenerate filenames without those tags
+        BatchOperations.regenerateFilenames(for: affectedSamples, oldFilenames: oldFilenames, vaultPath: vaultPath)
+        try? modelContext.save()
     }
 
     private func deleteTag(_ tag: Tag) {
+        // Regenerate filenames for affected samples before deleting the tag
+        let affectedSamples = Array(tag.samples)
+        var oldFilenames: [PersistentIdentifier: String] = [:]
+        for sample in affectedSamples {
+            oldFilenames[sample.persistentModelID] = FilenameEncoder.encode(sample: sample)
+        }
+
         modelContext.delete(tag)
+        BatchOperations.regenerateFilenames(for: affectedSamples, oldFilenames: oldFilenames, vaultPath: vaultPath)
+        try? modelContext.save()
     }
 
     private func countAffectedSamples(for group: TagGroup) -> Int {
