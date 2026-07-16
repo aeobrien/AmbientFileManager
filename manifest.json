@@ -1,0 +1,23 @@
+{
+  "capture_finished_at_utc": "2026-07-16T00:03:36Z",
+  "capture_started_at_utc": "2026-07-16T00:03:34Z",
+  "captured_at_utc": "2026-07-16T00:03:34Z",
+  "captured_byte_estimate": 364085,
+  "captured_path_count": 55,
+  "consistency_retry_count": 0,
+  "excluded": [],
+  "github_hard_limit_bytes": 100000000,
+  "guardian_version": "2.0-sidecar",
+  "head_state": "symbolic",
+  "host": "aidans-mac-mini",
+  "racy_capture": false,
+  "repository_id": "AmbientFileManager-5cd20c8cb4e9",
+  "schema_version": 1,
+  "snapshot_blob_threshold_bytes": 94371840,
+  "snapshot_consistency": "stable",
+  "source_branch": "main",
+  "source_head_oid": "93c838b69605888e05a8f6687cdccf193186d225",
+  "source_index_sha256": "c1534a1151a233b6d5e6819cca851709c818db1624ceb30d68dcfb13d194dd62",
+  "source_path": "/Users/aidanobrien/Dev/AmbientFileManager",
+  "upstream_observed": "origin/main"
+}
