@@ -1,0 +1,162 @@
+project_shape:
+  scale: multi-subsystem
+  has_subsystem_layer: true
+  expected_modules: "10-14"
+  kind: product
+
+modules:
+  - id: ambient-file-manager.data-layer.data-schema
+    project: AmbientFileManager
+    subsystem: Data Layer
+    name: Sample and Tag Schema
+    capability: Defines the persisted sample, tag group, and tag records that every feature reads and writes.
+    status: working
+    approach: Uses SwiftData `@Model` types with direct relationships and a small key helper for musical-key parsing and formatting.
+    tech: [SwiftData, SwiftUI]
+    io: { in: "user-edited sample metadata, tags, import attributes", out: "persisted `Sample`, `TagGroup`, and `Tag` records" }
+    code_refs: ["AmbientFileManager/Models/Sample.swift", "AmbientFileManager/Models/Tag.swift", "AmbientFileManager/Models/TagGroup.swift", "AmbientFileManager/Models/KeyHelper.swift", "AmbientFileManager/AmbientFileManagerApp.swift"]
+    known_gaps: ["No explicit schema migration path is implemented beyond launch-time database backup."]
+    match_keywords: ["swiftdata models", "audio asset metadata schema", "tag taxonomy", "music key helper"]
+
+  - id: ambient-file-manager.data-layer.vault-and-file-ops
+    project: AmbientFileManager
+    subsystem: Data Layer
+    name: Vault and File Operations
+    capability: Manages the configured vault directory and performs audio-file discovery, copy, existence, and rename operations.
+    status: working
+    approach: Wraps `FileManager`, `NSOpenPanel`, and `@AppStorage` vault-path state behind small utility functions and settings views.
+    tech: [FileManager, AppStorage, NSOpenPanel, SwiftUI]
+    io: { in: "vault folder path, source file URLs, target filenames", out: "copied or renamed files inside the flat vault directory" }
+    code_refs: ["AmbientFileManager/Services/VaultManager.swift", "AmbientFileManager/Views/Settings/SettingsView.swift", "AmbientFileManager/Views/Settings/VaultSettingsView.swift", "AmbientFileManager/ContentView.swift"]
+    known_gaps: ["The vault is fixed to a single flat directory with no higher-level recovery or consistency check.", "Many callers swallow vault rename/copy failures, so database state can drift from on-disk filenames."]
+    match_keywords: ["media vault", "file ingest", "flat file store", "audio file management", "macOS file picker"]
+
+  - id: ambient-file-manager.data-layer.database-backup-and-transfer
+    project: AmbientFileManager
+    subsystem: Data Layer
+    name: Database Backup and Transfer
+    capability: Creates launch-time SQLite backups and imports or exports the logical database as JSON.
+    status: partial
+    approach: Copies SwiftData store files into timestamped backup folders and serializes model graphs with `Codable`, `JSONEncoder`, and `JSONDecoder`.
+    tech: [SwiftData, Foundation, JSONEncoder, JSONDecoder, NSSavePanel, NSOpenPanel]
+    io: { in: "SwiftData model context and on-disk store files", out: "timestamped backup folders and JSON backup files" }
+    code_refs: ["AmbientFileManager/Services/DatabaseBackup.swift", "AmbientFileManager/Services/DatabaseExport.swift", "AmbientFileManager/Views/Settings/SettingsView.swift", "AmbientFileManager/AmbientFileManagerApp.swift"]
+    known_gaps: ["Database discovery only probes default Application Support `.store` files and may miss other SwiftData store locations.", "JSON import merges and updates by UUID but does not remove stale records."]
+    match_keywords: ["sqlite backup", "json export import", "swiftdata backup", "data portability", "migration safety"]
+
+  - id: ambient-file-manager.tag-management.tag-taxonomy-crud
+    project: AmbientFileManager
+    subsystem: Tag Management
+    name: Tag Taxonomy CRUD
+    capability: Lets the user create, rename, validate, and delete tag groups and tags while keeping affected sample filenames in sync.
+    status: working
+    approach: Uses SwiftUI sheets and alerts over SwiftData collections, with code validation and filename regeneration triggered around tag-code changes and cascade deletes.
+    tech: [SwiftUI, SwiftData, AppStorage]
+    io: { in: "tag-group names and codes, tag names and codes, delete or rename actions", out: "updated tag vocabulary and regenerated filenames for affected samples" }
+    code_refs: ["AmbientFileManager/Views/TagManager/TagManagerView.swift", "AmbientFileManager/Views/TagManager/TagGroupFormSheet.swift", "AmbientFileManager/Views/TagManager/TagFormSheet.swift", "AmbientFileManager/Services/BatchOperations.swift", "AmbientFileManager/Services/FilenameEncoder.swift"]
+    known_gaps: ["Save and rename failures are mostly handled with `try?`, so user feedback is weak when file regeneration fails."]
+    match_keywords: ["tag manager", "taxonomy editor", "metadata vocabulary", "code validation", "cascade rename"]
+
+  - id: ambient-file-manager.import-and-filename-encoding.filename-codec
+    project: AmbientFileManager
+    subsystem: Import & Filename Encoding
+    name: Filename Codec
+    capability: Encodes sample metadata into deterministic vault filenames and decodes recognized filenames back into metadata hints.
+    status: working
+    approach: Builds underscore-delimited filenames from sanitized names plus sorted tag codes, and decodes them with Swift regex patterns plus `KeyHelper`.
+    tech: [Foundation, Swift Regex]
+    io: { in: "sample names, keys, tempos, tag codes, versions, file extensions, existing filenames", out: "encoded filenames and decoded metadata/tag-code tuples" }
+    code_refs: ["AmbientFileManager/Services/FilenameEncoder.swift", "AmbientFileManager/Services/FilenameDecoder.swift", "AmbientFileManager/Models/KeyHelper.swift"]
+    known_gaps: ["The 255-character filename limit is only noted in comments; the codec itself does not raise a structured validation error.", "Decoding only understands the current encoded conventions and falls back loosely for unmatched segments."]
+    match_keywords: ["filename encoder", "metadata filename parser", "deterministic naming", "audio sample naming", "slugify plus tags"]
+
+  - id: ambient-file-manager.import-and-filename-encoding.import-intake-and-collision-resolution
+    project: AmbientFileManager
+    subsystem: Import & Filename Encoding
+    name: Import Intake and Collision Resolution
+    capability: Discovers dropped or picked files, previews candidates, applies parsed or shared metadata, and imports selected files into the vault with collision handling.
+    status: partial
+    approach: Drives a multi-step SwiftUI sheet over `VaultManager`, `FilenameDecoder`, and SwiftData, with sequential queue processing and manual collision decisions.
+    tech: [SwiftUI, SwiftData, NSOpenPanel, UniformTypeIdentifiers, FileManager]
+    io: { in: "dropped URLs or picker selections, import mode, optional shared metadata, collision choices", out: "copied vault files and inserted `Sample` records" }
+    code_refs: ["AmbientFileManager/ContentView.swift", "AmbientFileManager/Views/Import/ImportFlowView.swift", "AmbientFileManager/Services/VaultManager.swift", "AmbientFileManager/Services/FilenameDecoder.swift", "AmbientFileManager/Services/FilenameEncoder.swift"]
+    known_gaps: ["Quick-dump imports are currently auto-marked processed when parsed metadata or tags are present, which diverges from the ledger spec for inbox-first processing.", "Detailed mode applies one shared key, tempo, and tag set across the batch rather than walking each file independently.", "The unresolved-tag creation sheet does not perform the same duplicate and validation checks as the main tag-management forms."]
+    match_keywords: ["drag and drop import", "batch import wizard", "collision resolution", "audio file ingest", "filename metadata recovery"]
+
+  - id: ambient-file-manager.library-and-search.library-browse-and-filter
+    project: AmbientFileManager
+    subsystem: Library & Search
+    name: Library Browse and Filter
+    capability: Presents the main sample browser with text search, metadata filters, tag filters, sorting, grouping, selection, deletion, and export handoff.
+    status: working
+    approach: Fetches all samples with SwiftData and then applies search, filter, sort, grouped-browse, keyboard, and selection logic in a single SwiftUI view.
+    tech: [SwiftUI, SwiftData, AppStorage, FileManager]
+    io: { in: "sample collection, filter selections, keyboard commands, row selection", out: "filtered sample lists, batch selections, delete actions, export requests" }
+    code_refs: ["AmbientFileManager/Views/Library/LibraryView.swift", "AmbientFileManager/Views/Export/ExportFlowView.swift", "AmbientFileManager/Services/FilenameEncoder.swift", "AmbientFileManager/Services/VaultManager.swift"]
+    known_gaps: ["Filtering and sorting happen in memory after loading all samples instead of using generated SwiftData predicates as described in the project docs.", "Tempo filtering currently supports only all, free-time, or has-tempo states rather than a numeric range filter."]
+    match_keywords: ["asset browser", "metadata filtering", "tag filtering", "sample library", "faceted search", "grouped browse"]
+
+  - id: ambient-file-manager.library-and-search.sample-inspection-and-relinking
+    project: AmbientFileManager
+    subsystem: Library & Search
+    name: Sample Inspection and File Recovery
+    capability: Lets the user inspect and edit one sample in detail, toggle tags, play it, and manually restore a missing vault file.
+    status: partial
+    approach: Uses a bound SwiftUI inspector for direct sample edits and a library-side file-location flow that copies a chosen replacement into the vault.
+    tech: [SwiftUI, SwiftData, AppStorage, NSOpenPanel, FileManager]
+    io: { in: "selected sample, metadata edits, tag toggles, replacement file selection", out: "updated sample metadata, renamed vault file, or copied replacement file" }
+    code_refs: ["AmbientFileManager/Views/Library/SampleInspectorView.swift", "AmbientFileManager/Views/Library/LibraryView.swift", "AmbientFileManager/Services/FilenameEncoder.swift", "AmbientFileManager/Services/VaultManager.swift"]
+    known_gaps: ["Rename failures are ignored with `try?`, so inspector edits can leave sample metadata and vault filenames out of sync.", "The missing-file recovery flow copies a replacement into the expected vault path instead of maintaining a true relink/reference operation."]
+    match_keywords: ["detail inspector", "metadata editor", "asset relink", "missing file recovery", "single-item editor"]
+
+  - id: ambient-file-manager.inbox-and-processing.inbox-processing
+    project: AmbientFileManager
+    subsystem: Inbox & Processing
+    name: Inbox Processing
+    capability: Surfaces unprocessed files, lets the user edit metadata and tags, and moves items into the main library by marking them processed.
+    status: working
+    approach: Uses a predicate-backed SwiftData query for unprocessed samples plus a side editor that mutates sample fields and regenerates filenames in place.
+    tech: [SwiftUI, SwiftData, AppStorage]
+    io: { in: "unprocessed samples, metadata edits, tag toggles, processed confirmations", out: "updated samples with regenerated filenames and `isProcessed` set to true" }
+    code_refs: ["AmbientFileManager/Views/Inbox/InboxView.swift", "AmbientFileManager/ContentView.swift", "AmbientFileManager/Services/FilenameEncoder.swift", "AmbientFileManager/Services/VaultManager.swift"]
+    known_gaps: ["Inbox key editing uses a free-text field instead of the shared `KeyPicker`, so validation and UX are inconsistent with the library inspector.", "Only one selected item gets the editor side panel; there is no richer batch-edit workflow inside the inbox itself."]
+    match_keywords: ["processing inbox", "unprocessed queue", "metadata triage", "asset curation queue", "mark as processed"]
+
+  - id: ambient-file-manager.audition.playback-and-rendering
+    project: AmbientFileManager
+    subsystem: Audition
+    name: Playback and Adjustment Rendering
+    capability: Plays vault files in-app with transport controls, semitone pitch shifting, gain trim, scrubbing, and optional offline rendering of those adjustments during export.
+    status: working
+    approach: Wraps `AVAudioEngine`, `AVAudioPlayerNode`, and `AVAudioUnitVarispeed` in an observable transport service with a SwiftUI control bar and a manual-rendering export path.
+    tech: [AVFoundation, AVAudioEngine, AVAudioPlayerNode, AVAudioUnitVarispeed, Timer, SwiftUI]
+    io: { in: "vault file URLs, selected sample IDs, pitch offsets, trim values, scrub positions", out: "live playback state and optionally rendered adjusted audio files" }
+    code_refs: ["AmbientFileManager/Services/AudioPlayer.swift", "AmbientFileManager/Views/Audition/AudioPlayerView.swift", "AmbientFileManager/Views/Library/LibraryView.swift", "AmbientFileManager/Services/ExportService.swift"]
+    known_gaps: ["Pitch and trim changes are synced back to samples from the live player without explicit save or error reporting.", "Offline rendering keeps the original format and only applies varispeed plus gain; there is no separate conversion or advanced time-stretch pipeline."]
+    match_keywords: ["audio audition", "varispeed playback", "in-app audio player", "pitch shift", "offline audio rendering"]
+
+  - id: ambient-file-manager.batch-operations-and-undo.batch-metadata-and-undo
+    project: AmbientFileManager
+    subsystem: Batch Operations & Undo
+    name: Batch Metadata and Undo
+    capability: Applies bulk tag, key, tempo, and processed-state changes across many samples and records undo snapshots for reversal.
+    status: working
+    approach: Captures pre-change sample snapshots, mutates SwiftData models in place, renames files through the filename encoder, and replays snapshots through an app-scoped undo stack.
+    tech: [SwiftData, SwiftUI, Foundation]
+    io: { in: "selected samples, bulk metadata/tag commands, undo requests", out: "updated samples, renamed vault files, and reversible undo records" }
+    code_refs: ["AmbientFileManager/Services/BatchOperations.swift", "AmbientFileManager/Views/Library/BatchOperationsPanel.swift", "AmbientFileManager/Views/Library/LibraryView.swift"]
+    known_gaps: ["Per-file rename failures are intentionally swallowed, leaving the library to surface stale or missing filenames later.", "Undo covers metadata and renames but not destructive deletion."]
+    match_keywords: ["batch tagging", "bulk metadata edit", "undo stack", "mass rename", "audio asset batch operations"]
+
+  - id: ambient-file-manager.export.export-packaging
+    project: AmbientFileManager
+    subsystem: Export
+    name: Export Packaging
+    capability: Exports selected or filtered samples to a destination folder with flat or tag-grouped layout, optional codebook, and optional baked-in trim and pitch adjustments.
+    status: working
+    approach: Builds an `ExportConfiguration`, copies or renders files into destination folders, and emits a JSON codebook derived from current tag groups.
+    tech: [SwiftUI, FileManager, JSONSerialization, AVFoundation]
+    io: { in: "samples to export, destination URL, grouping choice, codebook flag, audio mode", out: "exported files, optional `codebook.json`, and an export result summary" }
+    code_refs: ["AmbientFileManager/Services/ExportService.swift", "AmbientFileManager/Views/Export/ExportFlowView.swift", "AmbientFileManager/Services/AudioPlayer.swift", "AmbientFileManager/Services/FilenameEncoder.swift"]
+    known_gaps: ["Destination collisions are only reported as failures; there is no overwrite, merge, or rename workflow during export.", "Codebook generation uses untyped JSON dictionaries rather than a versioned export schema."]
+    match_keywords: ["batch export", "folder grouping", "codebook export", "audio asset packaging", "rendered export"]
