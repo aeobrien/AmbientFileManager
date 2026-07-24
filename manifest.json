@@ -1,0 +1,23 @@
+{
+  "capture_finished_at_utc": "2026-07-24T00:59:32Z",
+  "capture_started_at_utc": "2026-07-24T00:59:29Z",
+  "captured_at_utc": "2026-07-24T00:59:29Z",
+  "captured_byte_estimate": 364085,
+  "captured_path_count": 55,
+  "consistency_retry_count": 0,
+  "excluded": [],
+  "github_hard_limit_bytes": 100000000,
+  "guardian_version": "2.0-sidecar",
+  "head_state": "symbolic",
+  "host": "aidans-laptop",
+  "racy_capture": false,
+  "repository_id": "AmbientFileManager-202d05e12252",
+  "schema_version": 1,
+  "snapshot_blob_threshold_bytes": 94371840,
+  "snapshot_consistency": "stable",
+  "source_branch": "main",
+  "source_head_oid": "93c838b69605888e05a8f6687cdccf193186d225",
+  "source_index_sha256": "5e370a47b8f31667328f3d8b9f76203c5c180e75504f78a48e7d853657d6f7b8",
+  "source_path": "/Users/aidan/Dev/AmbientFileManager",
+  "upstream_observed": "origin/main"
+}
