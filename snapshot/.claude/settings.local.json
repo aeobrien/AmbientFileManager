@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sqlite3 \"/Users/aidan/Library/Application Support/default.store\" \".tables\")",
+      "Bash(sqlite3 \"/Users/aidan/Library/Application Support/default.store\" \"SELECT COUNT\\(*\\) as tag_count FROM ZTAG;\")",
+      "Bash(sqlite3 \"/Users/aidan/Library/Application Support/default.store\" \"SELECT COUNT\\(*\\) as taggroup_count FROM ZTAGGROUP;\")",
+      "Bash(sqlite3 \"/Users/aidan/Library/Application Support/default.store\" \"SELECT COUNT\\(*\\) as sample_count FROM ZSAMPLE;\")",
+      "Bash(sqlite3 \"/Users/aidan/Library/Application Support/AmbientFileManager/Backups/backup_2026-03-27_202630/default.store\" \"SELECT ZTAG.ZNAME, ZTAG.ZCODE, ZTAGGROUP.ZNAME as GROUP_NAME, ZTAGGROUP.ZCODE as GROUP_CODE FROM ZTAG LEFT JOIN ZTAGGROUP ON ZTAG.ZGROUP = ZTAGGROUP.Z_PK;\")",
+      "Bash(sqlite3 \"/Users/aidan/Library/Application Support/AmbientFileManager/Backups/backup_2026-03-27_202630/default.store\" \"SELECT COUNT\\(*\\) FROM Z_1TAGS;\")",
+      "Bash(sqlite3 \"/Users/aidan/Library/Application Support/default.store\" \".schema ZTAG\")",
+      "Bash(sqlite3 \"/Users/aidan/Library/Application Support/AmbientFileManager/Backups/backup_2026-03-27_202630/default.store\" \".schema ZTAG\")",
+      "Bash(sqlite3 \"/Users/aidan/Library/Application Support/default.store\" \".schema ZTAGGROUP\")",
+      "Bash(sqlite3 \"/Users/aidan/Library/Application Support/AmbientFileManager/Backups/backup_2026-03-27_202630/default.store\" \".schema ZTAGGROUP\")",
+      "Bash(sqlite3 \"/Users/aidan/Library/Application Support/default.store\" \".schema Z_1TAGS\")",
+      "Bash(sqlite3 \"/Users/aidan/Library/Application Support/default.store\" \"SELECT COUNT\\(*\\) FROM Z_1TAGS;\")",
+      "Bash(sqlite3 \"/Users/aidan/Library/Application Support/default.store\" \"SELECT Z_PK, Z_ENT, Z_OPT, ZCODE, ZNAME, hex\\(ZID\\) FROM ZTAGGROUP;\")",
+      "Bash(sqlite3 \"/Users/aidan/Library/Application Support/AmbientFileManager/Backups/backup_2026-03-27_202630/default.store\" \"SELECT Z_PK, Z_ENT, Z_OPT, ZCODE, ZNAME FROM ZTAGGROUP;\")",
+      "Bash(sqlite3 \"/Users/aidan/Library/Application Support/AmbientFileManager/Backups/backup_2026-03-27_202630/default.store\" \"SELECT Z_PK, ZGROUP, ZCODE, ZNAME FROM ZTAG;\")",
+      "Bash(sqlite3 \"/Users/aidan/Library/Application Support/default.store\" \"SELECT * FROM ATRANSACTION ORDER BY Z_PK DESC LIMIT 10;\")",
+      "Bash(sqlite3 \"/Users/aidan/Library/Application Support/default.store\" \"SELECT * FROM ACHANGE ORDER BY Z_PK DESC LIMIT 20;\")",
+      "Bash(xcodebuild -project AmbientFileManager.xcodeproj -scheme AmbientFileManager -configuration Debug build)",
+      "Bash(find:*)",
+      "Bash(wc:*)",
+      "Bash(open:*)",
+      "Bash(pkill -f \"AmbientFileManager.app\")",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git remote:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}
