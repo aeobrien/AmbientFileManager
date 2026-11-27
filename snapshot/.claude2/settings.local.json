@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xcodebuild -scheme AmbientFileManager -configuration Debug build)",
+      "Bash(open:*)",
+      "Bash(pkill -f \"AmbientFileManager.app\")",
+      "Bash(echo \"exit: $?\")",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git remote:*)",
+      "Bash(git push:*)",
+      "Read(//Users/aidan/.claude/**)"
+    ]
+  }
+}
